@@ -80,6 +80,7 @@ class EventStream extends EventEmitter {
 	}
 
 	abort() {
+		this._aborted = true;
 		if (this.req) {
 			this.req.abort();
 			this.req = undefined;
@@ -88,7 +89,7 @@ class EventStream extends EventEmitter {
 	}
 
 	end() {
-		if (!this.req) {
+		if (this._aborted) {
 			// request was ended intentionally by abort
 			// do not auto reconnect.
 			return;
@@ -96,7 +97,15 @@ class EventStream extends EventEmitter {
 
 		this.req = undefined;
 		setTimeout(() => {
+			if (this._aborted){
+				// cancel here in case abort happened after end
+				return;
+			}
 			this.connect().catch(err => {
+				if (this._aborted){
+					// cancel here in case abort happened while reconnecting
+					return;
+				}
 				this.emit('error', err);
 				this.removeAllListeners();
 			});
